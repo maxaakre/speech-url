@@ -1,4 +1,4 @@
-import { Article } from "../types";
+import { Article, Language } from "../types";
 
 const fetchPageContent = async (url: string): Promise<string> => {
   const response = await fetch(url, {
@@ -67,6 +67,17 @@ const extractTextFromHtml = (html: string): { title: string; content: string } =
   return { title, content: paragraphs || content };
 };
 
+const detectLanguage = (text: string): Language => {
+  // Swedish-specific characters and common words
+  const swedishPatterns = /[åäöÅÄÖ]|(?:^|\s)(och|att|det|är|på|för|med|som|av|till|den|har|inte|om|ett|kan|var|vid|jag|från|men)\b/gi;
+
+  // If more than 5 Swedish indicators in the first 1000 chars, likely Swedish
+  const sample = text.slice(0, 1000);
+  const swedishMatches = sample.match(swedishPatterns) || [];
+
+  return swedishMatches.length > 5 ? 'sv' : 'en';
+};
+
 export const extractArticle = async (url: string): Promise<Article> => {
   const html = await fetchPageContent(url);
   const { title, content } = extractTextFromHtml(html);
@@ -75,9 +86,12 @@ export const extractArticle = async (url: string): Promise<Article> => {
     throw new Error("Could not extract article content from this URL");
   }
 
+  const language = detectLanguage(content);
+
   return {
     title,
     content,
     url,
+    language,
   };
 };

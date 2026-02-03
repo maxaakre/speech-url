@@ -1,7 +1,13 @@
 import * as Speech from "expo-speech";
-import { PlaybackSpeed } from "../types";
+import { PlaybackSpeed, Language } from "../types";
 
-const CHUNK_SIZE = 500; // Characters per chunk for better control
+const CHUNK_SIZE = 500;
+
+export interface Voice {
+  identifier: string;
+  name: string;
+  language: string;
+}
 
 export const splitIntoChunks = (text: string): string[] => {
   const chunks: string[] = [];
@@ -25,17 +31,37 @@ export const splitIntoChunks = (text: string): string[] => {
   return chunks;
 };
 
+export const getAvailableVoices = async (): Promise<Voice[]> => {
+  const voices = await Speech.getAvailableVoicesAsync();
+  return voices.map((v) => ({
+    identifier: v.identifier,
+    name: v.name,
+    language: v.language,
+  }));
+};
+
+export const getVoicesForLanguage = async (language: Language): Promise<Voice[]> => {
+  const voices = await getAvailableVoices();
+  const langPrefix = language === 'en' ? 'en' : 'sv';
+  return voices.filter((v) => v.language.toLowerCase().startsWith(langPrefix));
+};
+
 export const speak = async (
   text: string,
   options: {
     rate?: PlaybackSpeed;
+    voiceId?: string;
+    language?: Language;
     onDone?: () => void;
     onStopped?: () => void;
   } = {}
 ): Promise<void> => {
+  const speechLang = options.language === 'sv' ? 'sv-SE' : 'en-US';
+
   return new Promise((resolve) => {
     Speech.speak(text, {
-      language: "en-US",
+      language: speechLang,
+      voice: options.voiceId,
       rate: options.rate || 1,
       pitch: 1.0,
       onDone: () => {
@@ -68,16 +94,4 @@ export const resume = async (): Promise<void> => {
 
 export const isSpeaking = async (): Promise<boolean> => {
   return Speech.isSpeakingAsync();
-};
-
-export const testVoice = (): void => {
-  Speech.speak("Hello! This is a test of the text to speech system.", {
-    language: "en-US",
-    rate: 1,
-    pitch: 1,
-  });
-};
-
-export const getAvailableVoices = async () => {
-  return Speech.getAvailableVoicesAsync();
 };
