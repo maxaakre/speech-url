@@ -1,6 +1,19 @@
 import { File, Paths } from "expo-file-system";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import { Language } from "../types";
+
+// Configure audio mode for playback
+const configureAudio = async () => {
+  await Audio.setAudioModeAsync({
+    allowsRecordingIOS: false,
+    playsInSilentModeIOS: true,
+    staysActiveInBackground: false,
+    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    shouldDuckAndroid: true,
+    playThroughEarpieceAndroid: false,
+  });
+};
 
 export interface GoogleVoice {
   id: string;
@@ -77,6 +90,9 @@ export const playAudio = async (
   base64Audio: string,
   onDone?: () => void
 ): Promise<void> => {
+  // Configure audio mode for playback (important for iOS)
+  await configureAudio();
+
   // Stop any existing playback
   if (currentSound) {
     await currentSound.unloadAsync();
