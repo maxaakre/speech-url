@@ -75,13 +75,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e0e0e0",
     overflow: "hidden",
-    height: Platform.OS === "ios" ? 50 : 48,
+    height: Platform.OS === "ios" ? 60 : 48,
     justifyContent: "center",
   },
   picker: {
     height: Platform.OS === "ios" ? 180 : 48,
     width: 220,
-    marginTop: Platform.OS === "ios" ? -58 : 0,
+    marginTop: Platform.OS === "ios" ? -52 : 0,
   },
   pickerItem: {
     fontSize: 15,
