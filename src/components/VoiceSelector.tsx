@@ -67,7 +67,7 @@ export const VoiceSelector = ({
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
-    gap: 8,
+    gap: 4,
   },
   label: {
     fontSize: 14,
@@ -80,11 +80,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   picker: {
-    height: Platform.OS === "ios" ? 150 : 44,
+    height: Platform.OS === "ios" ? 100 : 44,
     width: 200,
   },
   pickerItem: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#333",
   },
   disabled: {
@@ -102,6 +102,6 @@ const styles = StyleSheet.create({
   sourceIndicator: {
     fontSize: 12,
     color: "#4caf50",
-    marginTop: 4,
+    marginTop: 2,
   },
 });

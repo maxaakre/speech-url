@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   voiceSection: {
-    marginBottom: 24,
+    marginBottom: 16,
     alignItems: "center",
   },
   controlsSection: {
