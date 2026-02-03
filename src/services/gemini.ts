@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Article, Language } from "../types";
 
 const fetchPageContent = async (url: string): Promise<string> => {
@@ -94,4 +95,35 @@ export const extractArticle = async (url: string): Promise<Article> => {
     url,
     language,
   };
+};
+
+export const summarizeArticle = async (
+  content: string,
+  language: "en" | "sv",
+  apiKey: string
+): Promise<string> => {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const wordCount = content.split(/\s+/).length;
+  const lengthGuidance =
+    wordCount < 500
+      ? "Provide 2-3 bullet points covering the key takeaways."
+      : wordCount < 1500
+      ? "Provide a 1-2 paragraph summary covering the main points."
+      : "Provide a comprehensive summary of 2-3 paragraphs covering all major points.";
+
+  const languageInstruction =
+    language === "sv"
+      ? "Respond in Swedish."
+      : "Respond in English.";
+
+  const prompt = `Summarize the most important points from this article. ${lengthGuidance} ${languageInstruction}
+
+Article:
+${content}`;
+
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  return response.text();
 };
