@@ -1,5 +1,7 @@
 export type Language = 'en' | 'sv';
 
+export type ContentMode = 'full' | 'summary';
+
 export interface VoicePreferences {
   en: string | null;
   sv: string | null;
