@@ -10,23 +10,33 @@ import {
   Linking,
 } from "react-native";
 import { loadApiKey, saveApiKey, clearApiKey } from "../services/apiKeyStorage";
+import {
+  loadGeminiApiKey,
+  saveGeminiApiKey,
+  clearGeminiApiKey,
+} from "../services/geminiKeyStorage";
 import { validateApiKey } from "../services/googleTts";
 
 interface SettingsModalProps {
   visible: boolean;
   onClose: () => void;
   onApiKeyChange: (apiKey: string | null) => void;
+  onGeminiKeyChange: (apiKey: string | null) => void;
 }
 
 export const SettingsModal = ({
   visible,
   onClose,
   onApiKeyChange,
+  onGeminiKeyChange,
 }: SettingsModalProps) => {
   const [apiKey, setApiKey] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [status, setStatus] = useState<"none" | "valid" | "invalid">("none");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiStatus, setGeminiStatus] = useState<"none" | "saved">("none");
 
   useEffect(() => {
     if (visible) {
@@ -37,6 +47,15 @@ export const SettingsModal = ({
         } else {
           setApiKey("");
           setStatus("none");
+        }
+      });
+      loadGeminiApiKey().then((key) => {
+        if (key) {
+          setGeminiKey(key);
+          setGeminiStatus("saved");
+        } else {
+          setGeminiKey("");
+          setGeminiStatus("none");
         }
       });
     }
@@ -80,6 +99,29 @@ export const SettingsModal = ({
     Linking.openURL(
       "https://cloud.google.com/text-to-speech/docs/before-you-begin"
     );
+  };
+
+  const handleGeminiSave = async () => {
+    if (!geminiKey.trim()) {
+      await clearGeminiApiKey();
+      setGeminiStatus("none");
+      onGeminiKeyChange(null);
+      return;
+    }
+    await saveGeminiApiKey(geminiKey.trim());
+    setGeminiStatus("saved");
+    onGeminiKeyChange(geminiKey.trim());
+  };
+
+  const handleGeminiClear = async () => {
+    await clearGeminiApiKey();
+    setGeminiKey("");
+    setGeminiStatus("none");
+    onGeminiKeyChange(null);
+  };
+
+  const openGeminiDocs = () => {
+    Linking.openURL("https://aistudio.google.com/app/apikey");
   };
 
   return (
@@ -146,6 +188,49 @@ export const SettingsModal = ({
               )}
             </TouchableOpacity>
           </View>
+
+          <View style={styles.divider} />
+
+          <Text style={styles.sectionTitle}>Gemini AI (Summarization)</Text>
+          <Text style={styles.description}>
+            Add your Gemini API key to enable article summarization.
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            value={geminiKey}
+            onChangeText={(text) => setGeminiKey(text.replace(/[\n\r\s]/g, ""))}
+            placeholder="Paste your Gemini API key here..."
+            secureTextEntry={true}
+            autoCapitalize="none"
+            autoCorrect={false}
+            multiline={false}
+          />
+
+          {geminiStatus === "saved" && (
+            <Text style={styles.statusValid}>✓ Saved</Text>
+          )}
+          {geminiStatus === "none" && (
+            <Text style={styles.statusNone}>Summarization disabled</Text>
+          )}
+
+          <TouchableOpacity onPress={openGeminiDocs} style={styles.linkButton}>
+            <Text style={styles.linkText}>Get a Gemini API key →</Text>
+          </TouchableOpacity>
+
+          <View style={styles.buttonRow}>
+            {geminiStatus === "saved" && (
+              <TouchableOpacity onPress={handleGeminiClear} style={styles.clearButton}>
+                <Text style={styles.clearButtonText}>Clear</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={handleGeminiSave}
+              style={styles.saveButton}
+            >
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -170,6 +255,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginVertical: 20,
   },
   title: {
     fontSize: 20,
