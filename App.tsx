@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   StyleSheet,
@@ -7,12 +8,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import { useArticlePlayer } from "./src/hooks/useArticlePlayer";
 import { UrlInput } from "./src/components/UrlInput";
 import { PlaybackControls } from "./src/components/PlaybackControls";
 import { LanguageSelector } from "./src/components/LanguageSelector";
 import { VoiceSelector } from "./src/components/VoiceSelector";
+import { SettingsModal } from "./src/components/SettingsModal";
 
 export default function App() {
   const {
@@ -29,6 +32,7 @@ export default function App() {
     voices,
     selectedVoiceId,
     voicesLoading,
+    useGoogleTts,
     setUrl,
     extract,
     play,
@@ -40,7 +44,10 @@ export default function App() {
     skipBack,
     setLanguage,
     setSelectedVoiceId,
+    setApiKey,
   } = useArticlePlayer();
+
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -53,10 +60,21 @@ export default function App() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <Text style={styles.title}>Speech My URL</Text>
-          <Text style={styles.subtitle}>
-            Paste an article URL and listen to it
-          </Text>
+          <View style={styles.header}>
+            <View style={styles.headerSpacer} />
+            <View style={styles.headerCenter}>
+              <Text style={styles.title}>Speech My URL</Text>
+              <Text style={styles.subtitle}>
+                Paste an article URL and listen to it
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => setSettingsVisible(true)}
+            >
+              <Text style={styles.settingsIcon}>⚙️</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* URL Input */}
           <View style={styles.inputSection}>
@@ -114,6 +132,7 @@ export default function App() {
                 onVoiceChange={setSelectedVoiceId}
                 disabled={isPlaying}
                 loading={voicesLoading}
+                useGoogleTts={useGoogleTts}
               />
             </View>
           )}
@@ -138,6 +157,11 @@ export default function App() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        onApiKeyChange={setApiKey}
+      />
       <StatusBar style="auto" />
     </SafeAreaView>
   );
@@ -156,6 +180,18 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 40,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 32,
+  },
+  headerSpacer: {
+    width: 44,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
@@ -166,7 +202,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-    marginBottom: 32,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingsIcon: {
+    fontSize: 24,
   },
   inputSection: {
     marginBottom: 20,
