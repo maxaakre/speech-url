@@ -1,4 +1,4 @@
-import { File, Paths } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import { Language } from "../types";
 
@@ -53,6 +53,8 @@ export const synthesizeSpeech = async (
     throw new Error(`Voice not found: ${voiceId}`);
   }
 
+  console.log("Synthesizing speech for:", text.substring(0, 50) + "...");
+
   const response = await fetch(
     `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
     {
@@ -76,20 +78,24 @@ export const synthesizeSpeech = async (
 
   if (!response.ok) {
     const error = await response.json();
+    console.error("TTS API error:", error);
     throw new Error(error.error?.message || "Failed to synthesize speech");
   }
 
   const data = await response.json();
+  console.log("Got audio content, length:", data.audioContent?.length);
   return data.audioContent; // base64 encoded MP3
 };
 
 let currentSound: Audio.Sound | null = null;
-let currentTempFile: File | null = null;
+let currentTempFile: string | null = null;
 
 export const playAudio = async (
   base64Audio: string,
   onDone?: () => void
 ): Promise<void> => {
+  console.log("playAudio called, base64 length:", base64Audio?.length);
+
   // Configure audio mode for playback (important for iOS)
   await configureAudio();
 
@@ -102,35 +108,40 @@ export const playAudio = async (
   // Clean up previous temp file
   if (currentTempFile) {
     try {
-      await currentTempFile.delete();
+      await FileSystem.deleteAsync(currentTempFile, { idempotent: true });
     } catch {
       // Ignore cleanup errors
     }
     currentTempFile = null;
   }
 
-  // Write to temp file using new expo-file-system API
-  const tempFile = new File(Paths.cache, `tts_audio_${Date.now()}.mp3`);
-  await tempFile.write(base64Audio, { encoding: "base64" });
+  // Write to temp file using legacy expo-file-system API
+  const tempFile = `${FileSystem.cacheDirectory}tts_audio_${Date.now()}.mp3`;
+  console.log("Writing to temp file:", tempFile);
+
+  await FileSystem.writeAsStringAsync(tempFile, base64Audio, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
   currentTempFile = tempFile;
+
+  console.log("File written, creating sound...");
 
   // Play the audio
   const { sound } = await Audio.Sound.createAsync(
-    { uri: tempFile.uri },
+    { uri: tempFile },
     { shouldPlay: true }
   );
   currentSound = sound;
 
+  console.log("Sound created and playing");
+
   // Set up completion callback
   sound.setOnPlaybackStatusUpdate((status) => {
     if (status.isLoaded && status.didJustFinish) {
+      console.log("Playback finished");
       sound.unloadAsync();
       if (currentTempFile) {
-        try {
-          currentTempFile.delete();
-        } catch {
-          // Ignore cleanup errors
-        }
+        FileSystem.deleteAsync(currentTempFile, { idempotent: true }).catch(() => {});
         currentTempFile = null;
       }
       currentSound = null;
@@ -147,7 +158,7 @@ export const stopAudio = async (): Promise<void> => {
   }
   if (currentTempFile) {
     try {
-      await currentTempFile.delete();
+      await FileSystem.deleteAsync(currentTempFile, { idempotent: true });
     } catch {
       // Ignore cleanup errors
     }
