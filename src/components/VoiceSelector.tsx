@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   picker: {
-    height: Platform.OS === "ios" ? 100 : 44,
+    height: Platform.OS === "ios" ? 80 : 44,
     width: 200,
   },
   pickerItem: {
