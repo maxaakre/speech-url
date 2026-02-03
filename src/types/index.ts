@@ -21,3 +21,9 @@ export interface PlaybackState {
   speed: PlaybackSpeed;
   currentChunkIndex: number;
 }
+
+export interface UnifiedVoice {
+  id: string;
+  name: string;
+  source: "device" | "google";
+}
