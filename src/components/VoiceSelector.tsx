@@ -71,15 +71,17 @@ const styles = StyleSheet.create({
   },
   pickerWrapper: {
     backgroundColor: "#f5f5f5",
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#e0e0e0",
     overflow: "hidden",
-    minWidth: 220,
+    height: Platform.OS === "ios" ? 44 : 48,
+    justifyContent: "center",
   },
   picker: {
-    height: Platform.OS === "ios" ? 120 : 48,
+    height: Platform.OS === "ios" ? 180 : 48,
     width: 220,
+    marginTop: Platform.OS === "ios" ? -68 : 0,
   },
   pickerItem: {
     fontSize: 15,
