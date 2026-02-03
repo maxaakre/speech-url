@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Linking,
+  ScrollView,
 } from "react-native";
 import { loadApiKey, saveApiKey, clearApiKey } from "../services/apiKeyStorage";
 import {
@@ -133,6 +134,7 @@ export const SettingsModal = ({
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
+          <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -231,6 +233,7 @@ export const SettingsModal = ({
               <Text style={styles.saveButtonText}>Save</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -249,6 +252,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
+    maxHeight: "80%",
   },
   header: {
     flexDirection: "row",
