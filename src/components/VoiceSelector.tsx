@@ -1,5 +1,4 @@
-import { View, Text, StyleSheet, Platform } from "react-native";
-import { Picker } from "@react-native-picker/picker";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { UnifiedVoice } from "../types";
 
 interface VoiceSelectorProps {
@@ -22,7 +21,7 @@ export const VoiceSelector = ({
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.label}>Voice:</Text>
+        <Text style={styles.label}>Voice</Text>
         <Text style={styles.loadingText}>Loading voices...</Text>
       </View>
     );
@@ -31,7 +30,7 @@ export const VoiceSelector = ({
   if (voices.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.label}>Voice:</Text>
+        <Text style={styles.label}>Voice</Text>
         <Text style={styles.noVoicesText}>No voices available</Text>
       </View>
     );
@@ -39,26 +38,39 @@ export const VoiceSelector = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Voice:</Text>
-      <View style={[styles.pickerContainer, disabled && styles.disabled]}>
-        <Picker
-          selectedValue={selectedVoiceId || voices[0]?.id}
-          onValueChange={onVoiceChange}
-          enabled={!disabled}
-          style={styles.picker}
-          itemStyle={styles.pickerItem}
-        >
-          {voices.map((voice) => (
-            <Picker.Item
+      <Text style={styles.label}>Voice</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsContainer}
+      >
+        {voices.map((voice) => {
+          const isSelected = voice.id === selectedVoiceId;
+          return (
+            <TouchableOpacity
               key={voice.id}
-              label={voice.name}
-              value={voice.id}
-            />
-          ))}
-        </Picker>
-      </View>
+              style={[
+                styles.chip,
+                isSelected && styles.chipSelected,
+                disabled && styles.chipDisabled,
+              ]}
+              onPress={() => onVoiceChange(voice.id)}
+              disabled={disabled}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  isSelected && styles.chipTextSelected,
+                ]}
+              >
+                {voice.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
       {useGoogleTts && (
-        <Text style={styles.sourceIndicator}>Using Google Cloud TTS</Text>
+        <Text style={styles.sourceIndicator}>Google Cloud TTS</Text>
       )}
     </View>
   );
@@ -73,22 +85,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  pickerContainer: {
+  chipsContainer: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
     backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    minWidth: 200,
-    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
-  picker: {
-    height: Platform.OS === "ios" ? 150 : 44,
-    width: 200,
+  chipSelected: {
+    backgroundColor: "#2196f3",
+    borderColor: "#2196f3",
   },
-  pickerItem: {
-    fontSize: 16,
+  chipDisabled: {
+    opacity: 0.5,
+  },
+  chipText: {
+    fontSize: 14,
     color: "#333",
   },
-  disabled: {
-    opacity: 0.5,
+  chipTextSelected: {
+    color: "#fff",
+    fontWeight: "500",
   },
   loadingText: {
     fontSize: 14,
