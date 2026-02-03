@@ -54,16 +54,16 @@ export const SettingsModal = ({
     setIsValidating(true);
     setErrorMessage(null);
 
-    const isValid = await validateApiKey(apiKey.trim());
+    const result = await validateApiKey(apiKey.trim());
 
-    if (isValid) {
+    if (result.valid) {
       await saveApiKey(apiKey.trim());
       setStatus("valid");
       onApiKeyChange(apiKey.trim());
       onClose();
     } else {
       setStatus("invalid");
-      setErrorMessage("Invalid API key. Please check and try again.");
+      setErrorMessage(result.error || "Invalid API key");
     }
 
     setIsValidating(false);

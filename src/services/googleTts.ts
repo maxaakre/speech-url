@@ -151,14 +151,23 @@ export const resumeAudio = async (): Promise<void> => {
   }
 };
 
-export const validateApiKey = async (apiKey: string): Promise<boolean> => {
+export const validateApiKey = async (apiKey: string): Promise<{ valid: boolean; error?: string }> => {
   try {
-    // Try a minimal API call to validate the key
     const response = await fetch(
       `https://texttospeech.googleapis.com/v1/voices?key=${apiKey}`
     );
-    return response.ok;
-  } catch {
-    return false;
+    if (response.ok) {
+      return { valid: true };
+    }
+    const data = await response.json();
+    return {
+      valid: false,
+      error: data.error?.message || `Error ${response.status}`
+    };
+  } catch (err) {
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : "Network error"
+    };
   }
 };
