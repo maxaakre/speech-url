@@ -26,4 +26,5 @@ npx expo start
 ```bash
 npx expo export --platform web
 cd dist && npx vercel --yes
+cd dist && npx vercel --prod --yes
 ```

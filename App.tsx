@@ -72,6 +72,7 @@ export default function App() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={styles.contentWrapper}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -212,6 +213,7 @@ export default function App() {
               disabled={!article}
             />
           </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
       <SettingsModal
@@ -237,6 +239,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     paddingTop: 40,
+    alignItems: "center",
+  },
+  contentWrapper: {
+    width: "100%",
+    maxWidth: 600,
   },
   header: {
     flexDirection: "row",
