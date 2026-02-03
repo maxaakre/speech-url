@@ -106,11 +106,12 @@ export const SettingsModal = ({
           <TextInput
             style={styles.input}
             value={apiKey}
-            onChangeText={setApiKey}
+            onChangeText={(text) => setApiKey(text.replace(/[\n\r\s]/g, ""))}
             placeholder="Paste your API key here..."
             secureTextEntry={true}
             autoCapitalize="none"
             autoCorrect={false}
+            multiline={false}
           />
 
           {status === "valid" && (
