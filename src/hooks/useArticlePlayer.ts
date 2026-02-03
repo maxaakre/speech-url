@@ -1,7 +1,12 @@
-import { useState, useCallback, useRef } from "react";
-import { Article, PlaybackSpeed } from "../types";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Article, PlaybackSpeed, Language } from "../types";
 import { extractArticle } from "../services/gemini";
 import * as SpeechService from "../services/speech";
+import { Voice } from "../services/speech";
+import {
+  loadVoicePreferences,
+  saveVoiceForLanguage,
+} from "../services/voiceStorage";
 
 interface UseArticlePlayerState {
   url: string;
@@ -13,6 +18,10 @@ interface UseArticlePlayerState {
   currentChunkIndex: number;
   totalChunks: number;
   error: string | null;
+  language: Language;
+  voices: Voice[];
+  selectedVoiceId: string | null;
+  voicesLoading: boolean;
 }
 
 interface UseArticlePlayerActions {
@@ -25,6 +34,8 @@ interface UseArticlePlayerActions {
   setSpeed: (speed: PlaybackSpeed) => void;
   skipForward: () => void;
   skipBack: () => void;
+  setLanguage: (language: Language) => void;
+  setSelectedVoiceId: (voiceId: string) => void;
 }
 
 type UseArticlePlayerReturn = UseArticlePlayerState & UseArticlePlayerActions;
@@ -39,11 +50,75 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [totalChunks, setTotalChunks] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguageState] = useState<Language>("en");
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [selectedVoiceId, setSelectedVoiceIdState] = useState<string | null>(null);
+  const [voicesLoading, setVoicesLoading] = useState(true);
 
   const chunksRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
   const currentIndexRef = useRef(0);
   const speedRef = useRef<PlaybackSpeed>(1);
+  const languageRef = useRef<Language>("en");
+  const voiceIdRef = useRef<string | null>(null);
+
+  // Load voices for current language
+  const loadVoicesForLanguage = useCallback(async (lang: Language) => {
+    setVoicesLoading(true);
+    try {
+      const availableVoices = await SpeechService.getVoicesForLanguage(lang);
+      setVoices(availableVoices);
+
+      // Load saved preference
+      const prefs = await loadVoicePreferences();
+      const savedVoiceId = prefs[lang];
+
+      // Check if saved voice is still available
+      const voiceExists = availableVoices.some((v) => v.identifier === savedVoiceId);
+      const voiceToUse = voiceExists ? savedVoiceId : availableVoices[0]?.identifier || null;
+
+      setSelectedVoiceIdState(voiceToUse);
+      voiceIdRef.current = voiceToUse;
+    } catch (err) {
+      console.error("Failed to load voices:", err);
+      setVoices([]);
+      setSelectedVoiceIdState(null);
+      voiceIdRef.current = null;
+    } finally {
+      setVoicesLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadVoicesForLanguage("en");
+  }, [loadVoicesForLanguage]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isPlayingRef.current = false;
+      SpeechService.stop();
+    };
+  }, []);
+
+  const setLanguage = useCallback(
+    async (newLanguage: Language) => {
+      setLanguageState(newLanguage);
+      languageRef.current = newLanguage;
+      await loadVoicesForLanguage(newLanguage);
+    },
+    [loadVoicesForLanguage]
+  );
+
+  const setSelectedVoiceId = useCallback(
+    async (voiceId: string) => {
+      setSelectedVoiceIdState(voiceId);
+      voiceIdRef.current = voiceId;
+      await saveVoiceForLanguage(languageRef.current, voiceId);
+    },
+    []
+  );
 
   const extract = useCallback(async () => {
     if (!url.trim()) {
@@ -59,6 +134,10 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     try {
       const extractedArticle = await extractArticle(url);
       setArticle(extractedArticle);
+
+      // Set detected language and load appropriate voices
+      await setLanguage(extractedArticle.language);
+
       const chunks = SpeechService.splitIntoChunks(extractedArticle.content);
       chunksRef.current = chunks;
       setTotalChunks(chunks.length);
@@ -69,7 +148,7 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [url]);
+  }, [url, setLanguage]);
 
   const playFromIndex = useCallback(async (startIndex: number) => {
     if (!chunksRef.current.length) return;
@@ -86,6 +165,8 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
 
       await SpeechService.speak(chunksRef.current[i], {
         rate: speedRef.current,
+        voiceId: voiceIdRef.current || undefined,
+        language: languageRef.current,
       });
     }
 
@@ -123,7 +204,6 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
       speedRef.current = newSpeed;
       setSpeedState(newSpeed);
 
-      // If currently playing, restart from current chunk with new speed
       if (isPlayingRef.current && !isPaused) {
         SpeechService.stop().then(() => {
           playFromIndex(currentIndexRef.current);
@@ -170,6 +250,10 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     currentChunkIndex,
     totalChunks,
     error,
+    language,
+    voices,
+    selectedVoiceId,
+    voicesLoading,
     setUrl,
     extract,
     play,
@@ -179,5 +263,7 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     setSpeed,
     skipForward,
     skipBack,
+    setLanguage,
+    setSelectedVoiceId,
   };
 };
