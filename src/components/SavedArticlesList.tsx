@@ -21,10 +21,6 @@ export const SavedArticlesList: React.FC<SavedArticlesListProps> = ({
   onDelete,
   disabled,
 }) => {
-  if (articles.length === 0) {
-    return null;
-  }
-
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
     return date.toLocaleDateString();
@@ -57,12 +53,16 @@ export const SavedArticlesList: React.FC<SavedArticlesListProps> = ({
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Saved Articles</Text>
-      <FlatList
-        data={articles}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        scrollEnabled={false}
-      />
+      {articles.length === 0 ? (
+        <Text style={styles.emptyText}>No saved articles yet</Text>
+      ) : (
+        <FlatList
+          data={articles}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          scrollEnabled={false}
+        />
+      )}
     </View>
   );
 };
@@ -76,6 +76,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 12,
     color: "#333",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#999",
+    fontStyle: "italic",
   },
   itemContainer: {
     flexDirection: "row",

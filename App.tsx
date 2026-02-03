@@ -17,6 +17,7 @@ import { LanguageSelector } from "./src/components/LanguageSelector";
 import { VoiceSelector } from "./src/components/VoiceSelector";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { ContentModeSelector } from "./src/components/ContentModeSelector";
+import { SavedArticlesList } from "./src/components/SavedArticlesList";
 
 export default function App() {
   const {
@@ -36,6 +37,10 @@ export default function App() {
     useGoogleTts,
     contentMode,
     geminiApiKey,
+    savedArticles,
+    isSaved,
+    isSaving,
+    saveProgress,
     setUrl,
     extract,
     play,
@@ -50,6 +55,9 @@ export default function App() {
     setApiKey,
     setContentMode,
     setGeminiApiKey,
+    loadSavedArticle,
+    deleteSavedArticle,
+    saveCurrentArticle,
   } = useArticlePlayer();
 
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -91,6 +99,14 @@ export default function App() {
               disabled={isPlaying}
             />
           </View>
+
+          {/* Saved Articles */}
+          <SavedArticlesList
+            articles={savedArticles}
+            onSelect={loadSavedArticle}
+            onDelete={deleteSavedArticle}
+            disabled={isPlaying}
+          />
 
           {/* Content Mode Selector - only show when Gemini key is configured */}
           {geminiApiKey && (
@@ -150,6 +166,31 @@ export default function App() {
                 loading={voicesLoading}
                 useGoogleTts={useGoogleTts}
               />
+            </View>
+          )}
+
+          {/* Save button */}
+          {article && useGoogleTts && !isSaved && (
+            <View style={styles.saveSection}>
+              {isSaving ? (
+                <Text style={styles.savingText}>
+                  Saving... {saveProgress?.current}/{saveProgress?.total}
+                </Text>
+              ) : (
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={saveCurrentArticle}
+                  disabled={isPlaying}
+                >
+                  <Text style={styles.saveButtonText}>Save for Offline</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {article && isSaved && (
+            <View style={styles.saveSection}>
+              <Text style={styles.savedText}>Saved for offline</Text>
             </View>
           )}
 
@@ -308,6 +349,17 @@ const styles = StyleSheet.create({
   },
   savedText: {
     color: "#4caf50",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  saveButton: {
+    backgroundColor: "#2196f3",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  saveButtonText: {
+    color: "#fff",
     fontSize: 14,
     fontWeight: "500",
   },
