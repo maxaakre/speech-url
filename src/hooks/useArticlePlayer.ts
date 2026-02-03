@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Article, PlaybackSpeed, Language, UnifiedVoice } from "../types";
+import { Article, PlaybackSpeed, Language, UnifiedVoice, SavedArticle } from "../types";
 import { extractArticle } from "../services/gemini";
 import * as SpeechService from "../services/speech";
 import * as GoogleTts from "../services/googleTts";
@@ -8,6 +8,7 @@ import {
   loadVoicePreferences,
   saveVoiceForLanguage,
 } from "../services/voiceStorage";
+import * as ArticleStorage from "../services/articleStorage";
 
 interface UseArticlePlayerState {
   url: string;
@@ -24,6 +25,10 @@ interface UseArticlePlayerState {
   selectedVoiceId: string | null;
   voicesLoading: boolean;
   useGoogleTts: boolean;
+  savedArticles: SavedArticle[];
+  isSaved: boolean;
+  isSaving: boolean;
+  saveProgress: { current: number; total: number } | null;
 }
 
 interface UseArticlePlayerActions {
@@ -39,6 +44,10 @@ interface UseArticlePlayerActions {
   setLanguage: (language: Language) => void;
   setSelectedVoiceId: (voiceId: string) => void;
   setApiKey: (apiKey: string | null) => void;
+  saveArticle: () => Promise<void>;
+  loadSavedArticle: (saved: SavedArticle) => void;
+  deleteSavedArticle: (id: string) => Promise<void>;
+  refreshSavedArticles: () => Promise<void>;
 }
 
 type UseArticlePlayerReturn = UseArticlePlayerState & UseArticlePlayerActions;
@@ -59,8 +68,13 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const [voicesLoading, setVoicesLoading] = useState(true);
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [useGoogleTts, setUseGoogleTts] = useState(false);
+  const [savedArticles, setSavedArticles] = useState<SavedArticle[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState<{ current: number; total: number } | null>(null);
 
   const chunksRef = useRef<string[]>([]);
+  const audioFilesRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
   const currentIndexRef = useRef(0);
   const speedRef = useRef<PlaybackSpeed>(1);
@@ -116,13 +130,14 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     }
   }, []);
 
-  // Initial load - check for API key first
+  // Initial load - check for API key and load saved articles
   useEffect(() => {
     loadApiKey().then((key) => {
       setApiKeyState(key);
       apiKeyRef.current = key;
       loadVoicesForLanguage("en", key);
     });
+    ArticleStorage.getSavedArticles().then(setSavedArticles);
   }, [loadVoicesForLanguage]);
 
   // Cleanup on unmount
@@ -171,10 +186,16 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     setError(null);
     setArticle(null);
     setTotalChunks(0);
+    setIsSaved(false);
+    audioFilesRef.current = [];
 
     try {
       const extractedArticle = await extractArticle(url);
       setArticle(extractedArticle);
+
+      // Check if this article is already saved
+      const alreadySaved = await ArticleStorage.isArticleSaved(url);
+      setIsSaved(alreadySaved);
 
       // Set detected language and load appropriate voices
       await setLanguage(extractedArticle.language);
@@ -198,37 +219,51 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     setIsPlaying(true);
     setIsPaused(false);
 
+    const hasSavedAudio = audioFilesRef.current.length > 0;
+
     for (let i = startIndex; i < chunksRef.current.length; i++) {
       if (!isPlayingRef.current) break;
 
       currentIndexRef.current = i;
       setCurrentChunkIndex(i);
 
-      const text = chunksRef.current[i];
-      const voiceId = voiceIdRef.current;
-
-      if (apiKeyRef.current && voiceId) {
-        // Use Google Cloud TTS
+      // Play from saved audio file if available
+      if (hasSavedAudio && audioFilesRef.current[i]) {
         try {
-          const audioContent = await GoogleTts.synthesizeSpeech(
-            text,
-            voiceId,
-            apiKeyRef.current
-          );
           await new Promise<void>((resolve) => {
-            GoogleTts.playAudio(audioContent, resolve);
+            GoogleTts.playFromFile(audioFilesRef.current[i], resolve);
           });
         } catch (err) {
-          console.error("Google TTS error:", err);
+          console.error("Saved audio playback error:", err);
           break;
         }
       } else {
-        // Use device voices
-        await SpeechService.speak(text, {
-          rate: speedRef.current,
-          voiceId: voiceId || undefined,
-          language: languageRef.current,
-        });
+        const text = chunksRef.current[i];
+        const voiceId = voiceIdRef.current;
+
+        if (apiKeyRef.current && voiceId) {
+          // Use Google Cloud TTS
+          try {
+            const audioContent = await GoogleTts.synthesizeSpeech(
+              text,
+              voiceId,
+              apiKeyRef.current
+            );
+            await new Promise<void>((resolve) => {
+              GoogleTts.playAudio(audioContent, resolve);
+            });
+          } catch (err) {
+            console.error("Google TTS error:", err);
+            break;
+          }
+        } else {
+          // Use device voices
+          await SpeechService.speak(text, {
+            rate: speedRef.current,
+            voiceId: voiceId || undefined,
+            language: languageRef.current,
+          });
+        }
       }
     }
 
@@ -326,6 +361,70 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     }
   }, [playFromIndex]);
 
+  const saveCurrentArticle = useCallback(async () => {
+    if (!article || !apiKeyRef.current || !voiceIdRef.current) {
+      setError("Cannot save: missing article or API key");
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveProgress({ current: 0, total: chunksRef.current.length });
+
+    try {
+      await ArticleStorage.saveArticle(
+        article,
+        chunksRef.current,
+        voiceIdRef.current,
+        apiKeyRef.current,
+        (progress) => setSaveProgress(progress)
+      );
+      setIsSaved(true);
+      const updated = await ArticleStorage.getSavedArticles();
+      setSavedArticles(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save article");
+    } finally {
+      setIsSaving(false);
+      setSaveProgress(null);
+    }
+  }, [article]);
+
+  const loadSaved = useCallback((saved: SavedArticle) => {
+    // Convert SavedArticle to Article format
+    const loadedArticle: Article = {
+      title: saved.title,
+      content: saved.content,
+      url: saved.url,
+      language: saved.language,
+    };
+
+    setArticle(loadedArticle);
+    setUrl(saved.url);
+    setLanguageState(saved.language);
+    languageRef.current = saved.language;
+
+    // Set up chunks and audio files
+    const chunks = SpeechService.splitIntoChunks(saved.content);
+    chunksRef.current = chunks;
+    audioFilesRef.current = saved.audioFiles;
+    setTotalChunks(chunks.length);
+    setCurrentChunkIndex(0);
+    currentIndexRef.current = 0;
+    setIsSaved(true);
+    setError(null);
+  }, []);
+
+  const deleteSaved = useCallback(async (id: string) => {
+    await ArticleStorage.deleteSavedArticle(id);
+    const updated = await ArticleStorage.getSavedArticles();
+    setSavedArticles(updated);
+  }, []);
+
+  const refreshSavedArticles = useCallback(async () => {
+    const articles = await ArticleStorage.getSavedArticles();
+    setSavedArticles(articles);
+  }, []);
+
   return {
     url,
     article,
@@ -341,6 +440,10 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     selectedVoiceId,
     voicesLoading,
     useGoogleTts,
+    savedArticles,
+    isSaved,
+    isSaving,
+    saveProgress,
     setUrl,
     extract,
     play,
@@ -353,5 +456,9 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     setLanguage,
     setSelectedVoiceId,
     setApiKey,
+    saveArticle: saveCurrentArticle,
+    loadSavedArticle: loadSaved,
+    deleteSavedArticle: deleteSaved,
+    refreshSavedArticles,
   };
 };

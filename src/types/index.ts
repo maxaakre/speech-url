@@ -27,3 +27,15 @@ export interface UnifiedVoice {
   name: string;
   source: "device" | "google";
 }
+
+export interface SavedArticle {
+  id: string;
+  url: string;
+  title: string;
+  content: string;
+  summary?: string;
+  language: Language;
+  audioFiles: string[];
+  voiceId: string;
+  savedAt: number;
+}

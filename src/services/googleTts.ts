@@ -150,6 +150,51 @@ export const playAudio = async (
   });
 };
 
+export const playFromFile = async (
+  filePath: string,
+  onDone?: () => void
+): Promise<void> => {
+  console.log("playFromFile called:", filePath);
+
+  // Configure audio mode for playback (important for iOS)
+  await configureAudio();
+
+  // Stop any existing playback
+  if (currentSound) {
+    await currentSound.unloadAsync();
+    currentSound = null;
+  }
+
+  // Clean up previous temp file if any (not needed for saved files)
+  if (currentTempFile) {
+    try {
+      await FileSystem.deleteAsync(currentTempFile, { idempotent: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+    currentTempFile = null;
+  }
+
+  // Play the saved audio file
+  const { sound } = await Audio.Sound.createAsync(
+    { uri: filePath },
+    { shouldPlay: true }
+  );
+  currentSound = sound;
+
+  console.log("Playing from saved file");
+
+  // Set up completion callback
+  sound.setOnPlaybackStatusUpdate((status) => {
+    if (status.isLoaded && status.didJustFinish) {
+      console.log("Saved file playback finished");
+      sound.unloadAsync();
+      currentSound = null;
+      onDone?.();
+    }
+  });
+};
+
 export const stopAudio = async (): Promise<void> => {
   if (currentSound) {
     await currentSound.stopAsync();
