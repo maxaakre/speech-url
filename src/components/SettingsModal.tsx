@@ -156,8 +156,9 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 20,
+    justifyContent: "flex-start",
+    paddingTop: 100,
+    paddingHorizontal: 20,
   },
   modal: {
     backgroundColor: "#fff",
