@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Article, PlaybackSpeed, Language } from "../types";
+import { Article, PlaybackSpeed, Language, UnifiedVoice } from "../types";
 import { extractArticle } from "../services/gemini";
 import * as SpeechService from "../services/speech";
-import { Voice } from "../services/speech";
+import * as GoogleTts from "../services/googleTts";
+import { loadApiKey } from "../services/apiKeyStorage";
 import {
   loadVoicePreferences,
   saveVoiceForLanguage,
@@ -19,9 +20,10 @@ interface UseArticlePlayerState {
   totalChunks: number;
   error: string | null;
   language: Language;
-  voices: Voice[];
+  voices: UnifiedVoice[];
   selectedVoiceId: string | null;
   voicesLoading: boolean;
+  useGoogleTts: boolean;
 }
 
 interface UseArticlePlayerActions {
@@ -36,6 +38,7 @@ interface UseArticlePlayerActions {
   skipBack: () => void;
   setLanguage: (language: Language) => void;
   setSelectedVoiceId: (voiceId: string) => void;
+  setApiKey: (apiKey: string | null) => void;
 }
 
 type UseArticlePlayerReturn = UseArticlePlayerState & UseArticlePlayerActions;
@@ -51,9 +54,11 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const [totalChunks, setTotalChunks] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguageState] = useState<Language>("en");
-  const [voices, setVoices] = useState<Voice[]>([]);
+  const [voices, setVoices] = useState<UnifiedVoice[]>([]);
   const [selectedVoiceId, setSelectedVoiceIdState] = useState<string | null>(null);
   const [voicesLoading, setVoicesLoading] = useState(true);
+  const [apiKey, setApiKeyState] = useState<string | null>(null);
+  const [useGoogleTts, setUseGoogleTts] = useState(false);
 
   const chunksRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
@@ -61,12 +66,34 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const speedRef = useRef<PlaybackSpeed>(1);
   const languageRef = useRef<Language>("en");
   const voiceIdRef = useRef<string | null>(null);
+  const apiKeyRef = useRef<string | null>(null);
 
   // Load voices for current language
-  const loadVoicesForLanguage = useCallback(async (lang: Language) => {
+  const loadVoicesForLanguage = useCallback(async (lang: Language, currentApiKey: string | null) => {
     setVoicesLoading(true);
     try {
-      const availableVoices = await SpeechService.getVoicesForLanguage(lang);
+      let availableVoices: UnifiedVoice[];
+
+      if (currentApiKey) {
+        // Use Google Cloud TTS voices
+        const googleVoices = GoogleTts.getGoogleVoicesForLanguage(lang);
+        availableVoices = googleVoices.map((v) => ({
+          id: v.id,
+          name: v.name,
+          source: "google" as const,
+        }));
+        setUseGoogleTts(true);
+      } else {
+        // Use device voices
+        const deviceVoices = await SpeechService.getVoicesForLanguage(lang);
+        availableVoices = deviceVoices.map((v) => ({
+          id: v.identifier,
+          name: v.name,
+          source: "device" as const,
+        }));
+        setUseGoogleTts(false);
+      }
+
       setVoices(availableVoices);
 
       // Load saved preference
@@ -74,8 +101,8 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
       const savedVoiceId = prefs[lang];
 
       // Check if saved voice is still available
-      const voiceExists = availableVoices.some((v) => v.identifier === savedVoiceId);
-      const voiceToUse = voiceExists ? savedVoiceId : availableVoices[0]?.identifier || null;
+      const voiceExists = availableVoices.some((v) => v.id === savedVoiceId);
+      const voiceToUse = voiceExists ? savedVoiceId : availableVoices[0]?.id || null;
 
       setSelectedVoiceIdState(voiceToUse);
       voiceIdRef.current = voiceToUse;
@@ -89,9 +116,13 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     }
   }, []);
 
-  // Initial load
+  // Initial load - check for API key first
   useEffect(() => {
-    loadVoicesForLanguage("en");
+    loadApiKey().then((key) => {
+      setApiKeyState(key);
+      apiKeyRef.current = key;
+      loadVoicesForLanguage("en", key);
+    });
   }, [loadVoicesForLanguage]);
 
   // Cleanup on unmount
@@ -99,6 +130,7 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     return () => {
       isPlayingRef.current = false;
       SpeechService.stop();
+      GoogleTts.stopAudio();
     };
   }, []);
 
@@ -106,7 +138,7 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     async (newLanguage: Language) => {
       setLanguageState(newLanguage);
       languageRef.current = newLanguage;
-      await loadVoicesForLanguage(newLanguage);
+      await loadVoicesForLanguage(newLanguage, apiKeyRef.current);
     },
     [loadVoicesForLanguage]
   );
@@ -118,6 +150,15 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
       await saveVoiceForLanguage(languageRef.current, voiceId);
     },
     []
+  );
+
+  const setApiKey = useCallback(
+    async (newApiKey: string | null) => {
+      setApiKeyState(newApiKey);
+      apiKeyRef.current = newApiKey;
+      await loadVoicesForLanguage(languageRef.current, newApiKey);
+    },
+    [loadVoicesForLanguage]
   );
 
   const extract = useCallback(async () => {
@@ -163,11 +204,32 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
       currentIndexRef.current = i;
       setCurrentChunkIndex(i);
 
-      await SpeechService.speak(chunksRef.current[i], {
-        rate: speedRef.current,
-        voiceId: voiceIdRef.current || undefined,
-        language: languageRef.current,
-      });
+      const text = chunksRef.current[i];
+      const voiceId = voiceIdRef.current;
+
+      if (apiKeyRef.current && voiceId) {
+        // Use Google Cloud TTS
+        try {
+          const audioContent = await GoogleTts.synthesizeSpeech(
+            text,
+            voiceId,
+            apiKeyRef.current
+          );
+          await new Promise<void>((resolve) => {
+            GoogleTts.playAudio(audioContent, resolve);
+          });
+        } catch (err) {
+          console.error("Google TTS error:", err);
+          break;
+        }
+      } else {
+        // Use device voices
+        await SpeechService.speak(text, {
+          rate: speedRef.current,
+          voiceId: voiceId || undefined,
+          language: languageRef.current,
+        });
+      }
     }
 
     if (isPlayingRef.current) {
@@ -183,18 +245,30 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   }, [playFromIndex]);
 
   const pause = useCallback(async () => {
-    await SpeechService.pause();
+    if (apiKeyRef.current) {
+      await GoogleTts.pauseAudio();
+    } else {
+      await SpeechService.pause();
+    }
     setIsPaused(true);
   }, []);
 
   const resume = useCallback(async () => {
-    await SpeechService.resume();
+    if (apiKeyRef.current) {
+      await GoogleTts.resumeAudio();
+    } else {
+      await SpeechService.resume();
+    }
     setIsPaused(false);
   }, []);
 
   const stop = useCallback(async () => {
     isPlayingRef.current = false;
-    await SpeechService.stop();
+    if (apiKeyRef.current) {
+      await GoogleTts.stopAudio();
+    } else {
+      await SpeechService.stop();
+    }
     setIsPlaying(false);
     setIsPaused(false);
   }, []);
@@ -219,9 +293,15 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
       chunksRef.current.length - 1
     );
     if (isPlayingRef.current) {
-      SpeechService.stop().then(() => {
-        playFromIndex(newIndex);
-      });
+      if (apiKeyRef.current) {
+        GoogleTts.stopAudio().then(() => {
+          playFromIndex(newIndex);
+        });
+      } else {
+        SpeechService.stop().then(() => {
+          playFromIndex(newIndex);
+        });
+      }
     } else {
       currentIndexRef.current = newIndex;
       setCurrentChunkIndex(newIndex);
@@ -231,9 +311,15 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const skipBack = useCallback(() => {
     const newIndex = Math.max(currentIndexRef.current - 1, 0);
     if (isPlayingRef.current) {
-      SpeechService.stop().then(() => {
-        playFromIndex(newIndex);
-      });
+      if (apiKeyRef.current) {
+        GoogleTts.stopAudio().then(() => {
+          playFromIndex(newIndex);
+        });
+      } else {
+        SpeechService.stop().then(() => {
+          playFromIndex(newIndex);
+        });
+      }
     } else {
       currentIndexRef.current = newIndex;
       setCurrentChunkIndex(newIndex);
@@ -254,6 +340,7 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     voices,
     selectedVoiceId,
     voicesLoading,
+    useGoogleTts,
     setUrl,
     extract,
     play,
@@ -265,5 +352,6 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     skipBack,
     setLanguage,
     setSelectedVoiceId,
+    setApiKey,
   };
 };
