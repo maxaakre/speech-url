@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Article, PlaybackSpeed, Language, UnifiedVoice } from "../types";
-import { extractArticle } from "../services/gemini";
+import { Article, PlaybackSpeed, Language, UnifiedVoice, ContentMode } from "../types";
+import { extractArticle, summarizeArticle } from "../services/gemini";
 import * as SpeechService from "../services/speech";
 import * as GoogleTts from "../services/googleTts";
 import { loadApiKey } from "../services/apiKeyStorage";
+import { loadGeminiApiKey } from "../services/geminiKeyStorage";
 import {
   loadVoicePreferences,
   saveVoiceForLanguage,
@@ -24,6 +25,8 @@ interface UseArticlePlayerState {
   selectedVoiceId: string | null;
   voicesLoading: boolean;
   useGoogleTts: boolean;
+  contentMode: ContentMode;
+  geminiApiKey: string | null;
 }
 
 interface UseArticlePlayerActions {
@@ -39,6 +42,8 @@ interface UseArticlePlayerActions {
   setLanguage: (language: Language) => void;
   setSelectedVoiceId: (voiceId: string) => void;
   setApiKey: (apiKey: string | null) => void;
+  setContentMode: (mode: ContentMode) => void;
+  setGeminiApiKey: (apiKey: string | null) => void;
 }
 
 type UseArticlePlayerReturn = UseArticlePlayerState & UseArticlePlayerActions;
@@ -59,6 +64,8 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const [voicesLoading, setVoicesLoading] = useState(true);
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [useGoogleTts, setUseGoogleTts] = useState(false);
+  const [contentMode, setContentModeState] = useState<ContentMode>("full");
+  const [geminiApiKey, setGeminiApiKeyState] = useState<string | null>(null);
 
   const chunksRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
@@ -67,6 +74,8 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
   const languageRef = useRef<Language>("en");
   const voiceIdRef = useRef<string | null>(null);
   const apiKeyRef = useRef<string | null>(null);
+  const contentModeRef = useRef<ContentMode>("full");
+  const geminiApiKeyRef = useRef<string | null>(null);
 
   // Load voices for current language
   const loadVoicesForLanguage = useCallback(async (lang: Language, currentApiKey: string | null) => {
@@ -116,12 +125,16 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     }
   }, []);
 
-  // Initial load - check for API key first
+  // Initial load - check for API keys first
   useEffect(() => {
     loadApiKey().then((key) => {
       setApiKeyState(key);
       apiKeyRef.current = key;
       loadVoicesForLanguage("en", key);
+    });
+    loadGeminiApiKey().then((key) => {
+      setGeminiApiKeyState(key);
+      geminiApiKeyRef.current = key;
     });
   }, [loadVoicesForLanguage]);
 
@@ -161,6 +174,16 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     [loadVoicesForLanguage]
   );
 
+  const setContentMode = useCallback((mode: ContentMode) => {
+    setContentModeState(mode);
+    contentModeRef.current = mode;
+  }, []);
+
+  const setGeminiApiKey = useCallback((newApiKey: string | null) => {
+    setGeminiApiKeyState(newApiKey);
+    geminiApiKeyRef.current = newApiKey;
+  }, []);
+
   const extract = useCallback(async () => {
     if (!url.trim()) {
       setError("Please enter a URL");
@@ -174,12 +197,27 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
 
     try {
       const extractedArticle = await extractArticle(url);
-      setArticle(extractedArticle);
 
       // Set detected language and load appropriate voices
       await setLanguage(extractedArticle.language);
 
-      const chunks = SpeechService.splitIntoChunks(extractedArticle.content);
+      // Determine content to use based on mode
+      let contentToSpeak = extractedArticle.content;
+      if (contentModeRef.current === "summary" && geminiApiKeyRef.current) {
+        contentToSpeak = await summarizeArticle(
+          extractedArticle.content,
+          extractedArticle.language,
+          geminiApiKeyRef.current
+        );
+      }
+
+      // Store the article with potentially summarized content for display
+      setArticle({
+        ...extractedArticle,
+        content: contentToSpeak,
+      });
+
+      const chunks = SpeechService.splitIntoChunks(contentToSpeak);
       chunksRef.current = chunks;
       setTotalChunks(chunks.length);
       setCurrentChunkIndex(0);
@@ -341,6 +379,8 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     selectedVoiceId,
     voicesLoading,
     useGoogleTts,
+    contentMode,
+    geminiApiKey,
     setUrl,
     extract,
     play,
@@ -353,5 +393,7 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
     setLanguage,
     setSelectedVoiceId,
     setApiKey,
+    setContentMode,
+    setGeminiApiKey,
   };
 };
