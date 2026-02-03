@@ -1,5 +1,7 @@
 export type Language = 'en' | 'sv';
 
+export type ContentMode = 'full' | 'summary';
+
 export interface VoicePreferences {
   en: string | null;
   sv: string | null;
@@ -26,16 +28,4 @@ export interface UnifiedVoice {
   id: string;
   name: string;
   source: "device" | "google";
-}
-
-export interface SavedArticle {
-  id: string;
-  url: string;
-  title: string;
-  content: string;
-  summary?: string;
-  language: Language;
-  audioFiles: string[];
-  voiceId: string;
-  savedAt: number;
 }

@@ -1,8 +1,15 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Platform } from "react-native";
 import { Article, Language } from "../types";
 
 const fetchPageContent = async (url: string): Promise<string> => {
-  const response = await fetch(url, {
-    headers: {
+  // On web, we need a CORS proxy since browsers block cross-origin requests
+  const targetUrl = Platform.OS === "web"
+    ? `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+    : url;
+
+  const response = await fetch(targetUrl, {
+    headers: Platform.OS === "web" ? {} : {
       "User-Agent": "Mozilla/5.0 (compatible; ArticleReader/1.0)",
     },
   });
@@ -94,4 +101,59 @@ export const extractArticle = async (url: string): Promise<Article> => {
     url,
     language,
   };
+};
+
+export const summarizeArticle = async (
+  content: string,
+  language: "en" | "sv",
+  apiKey: string
+): Promise<string> => {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  const wordCount = content.split(/\s+/).length;
+  const lengthGuidance =
+    wordCount < 500
+      ? "Provide 2-3 bullet points covering the key takeaways."
+      : wordCount < 1500
+      ? "Provide a 1-2 paragraph summary covering the main points."
+      : "Provide a comprehensive summary of 2-3 paragraphs covering all major points.";
+
+  const languageInstruction =
+    language === "sv"
+      ? "Respond in Swedish."
+      : "Respond in English.";
+
+  const prompt = `Summarize the most important points from this article. ${lengthGuidance} ${languageInstruction}
+
+Article:
+${content}`;
+
+  const result = await model.generateContent(prompt);
+  const response = result.response;
+  return response.text();
+};
+
+export const validateGeminiApiKey = async (
+  apiKey: string
+): Promise<{ valid: boolean; error?: string }> => {
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    // Simple test request
+    await model.generateContent("Say 'ok'");
+
+    return { valid: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    // Rate limit (429) means the key is valid, just quota exceeded
+    if (message.includes("429") || message.includes("quota")) {
+      return { valid: true };
+    }
+    if (message.includes("API_KEY_INVALID") || message.includes("401")) {
+      return { valid: false, error: "Invalid API key" };
+    }
+    return { valid: false, error: message };
+  }
 };

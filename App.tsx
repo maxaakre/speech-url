@@ -16,7 +16,7 @@ import { PlaybackControls } from "./src/components/PlaybackControls";
 import { LanguageSelector } from "./src/components/LanguageSelector";
 import { VoiceSelector } from "./src/components/VoiceSelector";
 import { SettingsModal } from "./src/components/SettingsModal";
-import { SavedArticlesList } from "./src/components/SavedArticlesList";
+import { ContentModeSelector } from "./src/components/ContentModeSelector";
 
 export default function App() {
   const {
@@ -34,10 +34,8 @@ export default function App() {
     selectedVoiceId,
     voicesLoading,
     useGoogleTts,
-    savedArticles,
-    isSaved,
-    isSaving,
-    saveProgress,
+    contentMode,
+    geminiApiKey,
     setUrl,
     extract,
     play,
@@ -50,8 +48,8 @@ export default function App() {
     setLanguage,
     setSelectedVoiceId,
     setApiKey,
-    loadSavedArticle,
-    deleteSavedArticle,
+    setContentMode,
+    setGeminiApiKey,
   } = useArticlePlayer();
 
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -94,13 +92,16 @@ export default function App() {
             />
           </View>
 
-          {/* Saved Articles */}
-          <SavedArticlesList
-            articles={savedArticles}
-            onSelect={loadSavedArticle}
-            onDelete={deleteSavedArticle}
-            disabled={isPlaying}
-          />
+          {/* Content Mode Selector - only show when Gemini key is configured */}
+          {geminiApiKey && (
+            <View style={styles.contentModeSection}>
+              <ContentModeSelector
+                value={contentMode}
+                onChange={setContentMode}
+                disabled={isPlaying || isLoading}
+              />
+            </View>
+          )}
 
           {/* Error display */}
           {error && (
@@ -152,23 +153,6 @@ export default function App() {
             </View>
           )}
 
-          {/* Save status */}
-          {article && (
-            <View style={styles.saveSection}>
-              {isSaving ? (
-                <View style={styles.savingContainer}>
-                  <Text style={styles.savingText}>
-                    Saving for offline... {saveProgress?.current}/{saveProgress?.total}
-                  </Text>
-                </View>
-              ) : isSaved ? (
-                <View style={styles.savedContainer}>
-                  <Text style={styles.savedText}>Saved for offline</Text>
-                </View>
-              ) : null}
-            </View>
-          )}
-
           {/* Playback controls */}
           <View style={styles.controlsSection}>
             <PlaybackControls
@@ -193,6 +177,7 @@ export default function App() {
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
         onApiKeyChange={setApiKey}
+        onGeminiKeyChange={setGeminiApiKey}
       />
       <StatusBar style="auto" />
     </SafeAreaView>
@@ -247,6 +232,10 @@ const styles = StyleSheet.create({
   inputSection: {
     marginBottom: 20,
   },
+  contentModeSection: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
   errorContainer: {
     backgroundColor: "#ffebee",
     padding: 12,
@@ -295,7 +284,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   voiceSection: {
-    marginBottom: 24,
+    marginBottom: 16,
     alignItems: "center",
   },
   controlsSection: {

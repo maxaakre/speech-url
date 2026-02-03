@@ -22,6 +22,7 @@ export const VoiceSelector = ({
   if (loading) {
     return (
       <View style={styles.container}>
+        <Text style={styles.label}>Voice:</Text>
         <Text style={styles.loadingText}>Loading voices...</Text>
       </View>
     );
@@ -30,35 +31,34 @@ export const VoiceSelector = ({
   if (voices.length === 0) {
     return (
       <View style={styles.container}>
+        <Text style={styles.label}>Voice:</Text>
         <Text style={styles.noVoicesText}>No voices available</Text>
       </View>
     );
   }
 
-  const selectedVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
-
   return (
     <View style={styles.container}>
-      <View style={[styles.pickerWrapper, disabled && styles.disabled]}>
+      <Text style={styles.label}>Voice:</Text>
+      <View style={[styles.pickerContainer, disabled && styles.disabled]}>
         <Picker
           selectedValue={selectedVoiceId || voices[0]?.id}
           onValueChange={onVoiceChange}
           enabled={!disabled}
           style={styles.picker}
-          dropdownIconColor="#666"
+          itemStyle={styles.pickerItem}
         >
           {voices.map((voice) => (
             <Picker.Item
               key={voice.id}
               label={voice.name}
               value={voice.id}
-              style={styles.pickerItem}
             />
           ))}
         </Picker>
       </View>
       {useGoogleTts && (
-        <Text style={styles.sourceIndicator}>Google Cloud TTS</Text>
+        <Text style={styles.sourceIndicator}>Using Google Cloud TTS</Text>
       )}
     </View>
   );
@@ -69,22 +69,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  pickerWrapper: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
+  label: {
+    fontSize: 14,
+    color: "#666",
+  },
+  pickerContainer: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    minWidth: 200,
     overflow: "hidden",
-    height: Platform.OS === "ios" ? 85 : 48,
-    justifyContent: "center",
   },
   picker: {
-    height: Platform.OS === "ios" ? 180 : 48,
-    width: 220,
-    marginTop: Platform.OS === "ios" ? -40 : 0,
+    height: Platform.OS === "ios" ? 80 : 44,
+    width: 200,
   },
   pickerItem: {
-    fontSize: 15,
+    fontSize: 14,
+    color: "#333",
   },
   disabled: {
     opacity: 0.5,
@@ -99,7 +100,8 @@ const styles = StyleSheet.create({
     color: "#c62828",
   },
   sourceIndicator: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4caf50",
+    marginTop: 2,
   },
 });

@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
+import { Platform } from "react-native";
 import { Language } from "../types";
 
 // Configure audio mode for playback
@@ -89,6 +90,7 @@ export const synthesizeSpeech = async (
 
 let currentSound: Audio.Sound | null = null;
 let currentTempFile: string | null = null;
+let currentWebAudio: HTMLAudioElement | null = null;
 
 export const playAudio = async (
   base64Audio: string,
@@ -96,6 +98,35 @@ export const playAudio = async (
 ): Promise<void> => {
   console.log("playAudio called, base64 length:", base64Audio?.length);
 
+  // Web-specific playback using HTML5 Audio
+  if (Platform.OS === "web") {
+    // Stop any existing web audio
+    if (currentWebAudio) {
+      currentWebAudio.pause();
+      currentWebAudio = null;
+    }
+
+    const audio = new window.Audio(`data:audio/mp3;base64,${base64Audio}`);
+    currentWebAudio = audio;
+
+    audio.onended = () => {
+      console.log("Web audio playback finished");
+      currentWebAudio = null;
+      onDone?.();
+    };
+
+    audio.onerror = (e) => {
+      console.error("Web audio error:", e);
+      currentWebAudio = null;
+      onDone?.();
+    };
+
+    await audio.play();
+    console.log("Web audio playing");
+    return;
+  }
+
+  // Native playback using expo-av
   // Configure audio mode for playback (important for iOS)
   await configureAudio();
 
@@ -150,52 +181,15 @@ export const playAudio = async (
   });
 };
 
-export const playFromFile = async (
-  filePath: string,
-  onDone?: () => void
-): Promise<void> => {
-  console.log("playFromFile called:", filePath);
-
-  // Configure audio mode for playback (important for iOS)
-  await configureAudio();
-
-  // Stop any existing playback
-  if (currentSound) {
-    await currentSound.unloadAsync();
-    currentSound = null;
-  }
-
-  // Clean up previous temp file if any (not needed for saved files)
-  if (currentTempFile) {
-    try {
-      await FileSystem.deleteAsync(currentTempFile, { idempotent: true });
-    } catch {
-      // Ignore cleanup errors
-    }
-    currentTempFile = null;
-  }
-
-  // Play the saved audio file
-  const { sound } = await Audio.Sound.createAsync(
-    { uri: filePath },
-    { shouldPlay: true }
-  );
-  currentSound = sound;
-
-  console.log("Playing from saved file");
-
-  // Set up completion callback
-  sound.setOnPlaybackStatusUpdate((status) => {
-    if (status.isLoaded && status.didJustFinish) {
-      console.log("Saved file playback finished");
-      sound.unloadAsync();
-      currentSound = null;
-      onDone?.();
-    }
-  });
-};
-
 export const stopAudio = async (): Promise<void> => {
+  // Web audio
+  if (currentWebAudio) {
+    currentWebAudio.pause();
+    currentWebAudio.currentTime = 0;
+    currentWebAudio = null;
+  }
+
+  // Native audio
   if (currentSound) {
     await currentSound.stopAsync();
     await currentSound.unloadAsync();
@@ -212,12 +206,18 @@ export const stopAudio = async (): Promise<void> => {
 };
 
 export const pauseAudio = async (): Promise<void> => {
+  if (currentWebAudio) {
+    currentWebAudio.pause();
+  }
   if (currentSound) {
     await currentSound.pauseAsync();
   }
 };
 
 export const resumeAudio = async (): Promise<void> => {
+  if (currentWebAudio) {
+    await currentWebAudio.play();
+  }
   if (currentSound) {
     await currentSound.playAsync();
   }
