@@ -11,6 +11,8 @@ import {
 import { useArticlePlayer } from "./src/hooks/useArticlePlayer";
 import { UrlInput } from "./src/components/UrlInput";
 import { PlaybackControls } from "./src/components/PlaybackControls";
+import { LanguageSelector } from "./src/components/LanguageSelector";
+import { VoiceSelector } from "./src/components/VoiceSelector";
 
 export default function App() {
   const {
@@ -23,6 +25,10 @@ export default function App() {
     currentChunkIndex,
     totalChunks,
     error,
+    language,
+    voices,
+    selectedVoiceId,
+    voicesLoading,
     setUrl,
     extract,
     play,
@@ -32,6 +38,8 @@ export default function App() {
     setSpeed,
     skipForward,
     skipBack,
+    setLanguage,
+    setSelectedVoiceId,
   } = useArticlePlayer();
 
   return (
@@ -75,12 +83,38 @@ export default function App() {
               {article.author && (
                 <Text style={styles.articleAuthor}>by {article.author}</Text>
               )}
+
+              {/* Language selector */}
+              <View style={styles.languageSection}>
+                <Text style={styles.detectedText}>
+                  Detected: {language === "en" ? "English" : "Swedish"}
+                </Text>
+                <LanguageSelector
+                  value={language}
+                  onChange={setLanguage}
+                  disabled={isPlaying}
+                />
+              </View>
+
               <Text style={styles.readyText}>
-                Ready to play ({totalChunks} chunks, {article.content.length} chars)
+                Ready to play ({totalChunks} chunks)
               </Text>
               <Text style={styles.volumeHint}>
                 Make sure your device is not on silent mode
               </Text>
+            </View>
+          )}
+
+          {/* Voice selector */}
+          {article && (
+            <View style={styles.voiceSection}>
+              <VoiceSelector
+                voices={voices}
+                selectedVoiceId={selectedVoiceId}
+                onVoiceChange={setSelectedVoiceId}
+                disabled={isPlaying}
+                loading={voicesLoading}
+              />
             </View>
           )}
 
@@ -151,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     padding: 20,
     borderRadius: 12,
-    marginBottom: 32,
+    marginBottom: 20,
     alignItems: "center",
   },
   articleTitle: {
@@ -165,6 +199,15 @@ const styles = StyleSheet.create({
     color: "#666",
     marginBottom: 12,
   },
+  languageSection: {
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  detectedText: {
+    fontSize: 12,
+    color: "#999",
+  },
   readyText: {
     fontSize: 14,
     color: "#4caf50",
@@ -174,6 +217,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
     marginTop: 8,
+  },
+  voiceSection: {
+    marginBottom: 24,
+    alignItems: "center",
   },
   controlsSection: {
     flex: 1,
