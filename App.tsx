@@ -16,6 +16,7 @@ import { PlaybackControls } from "./src/components/PlaybackControls";
 import { LanguageSelector } from "./src/components/LanguageSelector";
 import { VoiceSelector } from "./src/components/VoiceSelector";
 import { SettingsModal } from "./src/components/SettingsModal";
+import { ContentModeSelector } from "./src/components/ContentModeSelector";
 
 export default function App() {
   const {
@@ -33,6 +34,8 @@ export default function App() {
     selectedVoiceId,
     voicesLoading,
     useGoogleTts,
+    contentMode,
+    geminiApiKey,
     setUrl,
     extract,
     play,
@@ -45,6 +48,8 @@ export default function App() {
     setLanguage,
     setSelectedVoiceId,
     setApiKey,
+    setContentMode,
+    setGeminiApiKey,
   } = useArticlePlayer();
 
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -86,6 +91,17 @@ export default function App() {
               disabled={isPlaying}
             />
           </View>
+
+          {/* Content Mode Selector - only show when Gemini key is configured */}
+          {geminiApiKey && (
+            <View style={styles.contentModeSection}>
+              <ContentModeSelector
+                value={contentMode}
+                onChange={setContentMode}
+                disabled={isPlaying || isLoading}
+              />
+            </View>
+          )}
 
           {/* Error display */}
           {error && (
@@ -161,6 +177,7 @@ export default function App() {
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
         onApiKeyChange={setApiKey}
+        onGeminiKeyChange={setGeminiApiKey}
       />
       <StatusBar style="auto" />
     </SafeAreaView>
@@ -214,6 +231,10 @@ const styles = StyleSheet.create({
   },
   inputSection: {
     marginBottom: 20,
+  },
+  contentModeSection: {
+    marginBottom: 20,
+    alignItems: "center",
   },
   errorContainer: {
     backgroundColor: "#ffebee",
