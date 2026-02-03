@@ -50,7 +50,6 @@ export default function App() {
     setLanguage,
     setSelectedVoiceId,
     setApiKey,
-    saveArticle,
     loadSavedArticle,
     deleteSavedArticle,
   } = useArticlePlayer();
@@ -153,28 +152,20 @@ export default function App() {
             </View>
           )}
 
-          {/* Save button */}
-          {article && useGoogleTts && (
+          {/* Save status */}
+          {article && (
             <View style={styles.saveSection}>
               {isSaving ? (
                 <View style={styles.savingContainer}>
                   <Text style={styles.savingText}>
-                    Saving... {saveProgress?.current}/{saveProgress?.total}
+                    Saving for offline... {saveProgress?.current}/{saveProgress?.total}
                   </Text>
                 </View>
               ) : isSaved ? (
                 <View style={styles.savedContainer}>
                   <Text style={styles.savedText}>Saved for offline</Text>
                 </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.saveButton}
-                  onPress={saveArticle}
-                  disabled={isPlaying}
-                >
-                  <Text style={styles.saveButtonText}>Save for Offline</Text>
-                </TouchableOpacity>
-              )}
+              ) : null}
             </View>
           )}
 
@@ -316,26 +307,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: "center",
   },
-  saveButton: {
-    backgroundColor: "#2196f3",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
   savingContainer: {
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   savingText: {
     color: "#666",
     fontSize: 14,
   },
   savedContainer: {
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   savedText: {
     color: "#4caf50",

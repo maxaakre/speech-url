@@ -195,7 +195,16 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
 
       // Check if this article is already saved
       const alreadySaved = await ArticleStorage.isArticleSaved(url);
-      setIsSaved(alreadySaved);
+
+      if (alreadySaved) {
+        // Load the saved version with audio files
+        const savedArticles = await ArticleStorage.getSavedArticles();
+        const saved = savedArticles.find(a => a.url === url);
+        if (saved) {
+          audioFilesRef.current = saved.audioFiles;
+          setIsSaved(true);
+        }
+      }
 
       // Set detected language and load appropriate voices
       await setLanguage(extractedArticle.language);
@@ -205,6 +214,32 @@ export const useArticlePlayer = (): UseArticlePlayerReturn => {
       setTotalChunks(chunks.length);
       setCurrentChunkIndex(0);
       currentIndexRef.current = 0;
+
+      // Auto-save if not already saved and Google TTS is available
+      if (!alreadySaved && apiKeyRef.current && voiceIdRef.current) {
+        setIsSaving(true);
+        setSaveProgress({ current: 0, total: chunks.length });
+
+        try {
+          const saved = await ArticleStorage.saveArticle(
+            extractedArticle,
+            chunks,
+            voiceIdRef.current,
+            apiKeyRef.current,
+            (progress) => setSaveProgress(progress)
+          );
+          audioFilesRef.current = saved.audioFiles;
+          setIsSaved(true);
+          const updated = await ArticleStorage.getSavedArticles();
+          setSavedArticles(updated);
+        } catch (saveErr) {
+          console.error("Auto-save failed:", saveErr);
+          // Don't show error - user can still play without saving
+        } finally {
+          setIsSaving(false);
+          setSaveProgress(null);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to extract article");
     } finally {
