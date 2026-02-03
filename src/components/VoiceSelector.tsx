@@ -1,13 +1,14 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { Voice } from "../services/speech";
+import { UnifiedVoice } from "../types";
 
 interface VoiceSelectorProps {
-  voices: Voice[];
+  voices: UnifiedVoice[];
   selectedVoiceId: string | null;
   onVoiceChange: (voiceId: string) => void;
   disabled?: boolean;
   loading?: boolean;
+  useGoogleTts?: boolean;
 }
 
 export const VoiceSelector = ({
@@ -16,6 +17,7 @@ export const VoiceSelector = ({
   onVoiceChange,
   disabled,
   loading,
+  useGoogleTts,
 }: VoiceSelectorProps) => {
   if (loading) {
     return (
@@ -40,20 +42,24 @@ export const VoiceSelector = ({
       <Text style={styles.label}>Voice:</Text>
       <View style={[styles.pickerContainer, disabled && styles.disabled]}>
         <Picker
-          selectedValue={selectedVoiceId || voices[0]?.identifier}
+          selectedValue={selectedVoiceId || voices[0]?.id}
           onValueChange={onVoiceChange}
           enabled={!disabled}
           style={styles.picker}
+          itemStyle={styles.pickerItem}
         >
           {voices.map((voice) => (
             <Picker.Item
-              key={voice.identifier}
+              key={voice.id}
               label={voice.name}
-              value={voice.identifier}
+              value={voice.id}
             />
           ))}
         </Picker>
       </View>
+      {useGoogleTts && (
+        <Text style={styles.sourceIndicator}>Using Google Cloud TTS</Text>
+      )}
     </View>
   );
 };
@@ -74,7 +80,12 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   picker: {
-    height: 44,
+    height: Platform.OS === "ios" ? 150 : 44,
+    width: 200,
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: "#333",
   },
   disabled: {
     opacity: 0.5,
@@ -87,5 +98,10 @@ const styles = StyleSheet.create({
   noVoicesText: {
     fontSize: 14,
     color: "#c62828",
+  },
+  sourceIndicator: {
+    fontSize: 12,
+    color: "#4caf50",
+    marginTop: 4,
   },
 });
